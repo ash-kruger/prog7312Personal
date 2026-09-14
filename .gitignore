@@ -1,0 +1,22 @@
+## .NET
+bin/
+obj/
+out/
+*.user
+*.suo
+
+## Uploaded files saved by the API at runtime
+src/SmartX.Api/UploadedFiles/
+
+## IDE
+.vs/
+.vscode/
+.idea/
+*.swp
+
+## OS
+.DS_Store
+Thumbs.db
+
+## Logs
+*.log
