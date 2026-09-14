@@ -1,0 +1,24 @@
+@page "/"
+
+<h1>Smart-X IoT Mesh Ecosystem</h1>
+<p>Select an architectural pillar. Two pillars are intentionally disabled in this build — they are implemented in Part 2 and the final PoE.</p>
+
+<div class="pillar-grid">
+    <a class="pillar-card enabled" href="/sensors">
+        <span class="pillar-badge active">Active &mdash; Part 1</span>
+        <h3>Sensor Data Ingestion &amp; Telemetry</h3>
+        <p>Register ESP32 devices, ingest telemetry, attach configuration files, and watch the Live Anomaly Radar.</p>
+    </a>
+
+    <div class="pillar-card disabled" title="Implemented in Part 2">
+        <span class="pillar-badge">Disabled &mdash; Part 2</span>
+        <h3>Real-Time Command Stream &amp; History</h3>
+        <p>Manual override commands, priority-queued critical alerts, and an automated action engine.</p>
+    </div>
+
+    <div class="pillar-card disabled" title="Implemented in the final PoE">
+        <span class="pillar-badge">Disabled &mdash; Final PoE</span>
+        <h3>Network Topology &amp; Mesh Routing</h3>
+        <p>Graph-based mesh visualisation, BFS/DFS traversal, and minimum-spanning-tree routing.</p>
+    </div>
+</div>
