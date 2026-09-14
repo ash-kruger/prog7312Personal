@@ -1,0 +1,473 @@
+@page "/sensors"
+@inject SmartXApiClient Api
+
+<h1>Sensor Data Ingestion &amp; Telemetry</h1>
+<p>Register devices, ingest telemetry, attach files, and watch the Live Anomaly Radar &mdash; the dynamic dashboard engagement feature chosen in the Task 1 research report.</p>
+
+<div class="panel">
+    <h2>1. Register a Sensor</h2>
+    <div class="form-row">
+        <div>
+            <label>Device MAC / Unique Identifier</label>
+            <input @bind="NewMac" placeholder="AA:BB:CC:DD:EE:01" />
+        </div>
+        <div>
+            <label>Deployment Location (Room / Zone / Node)</label>
+            <input @bind="NewLocation" placeholder="Zone 1, Sub-Zone B" />
+        </div>
+        <div>
+            <label>Sensor Category</label>
+            <select @bind="NewCategory">
+                @foreach (var category in Enum.GetValues<SensorCategory>())
+                {
+                    <option value="@category">@category</option>
+                }
+            </select>
+        </div>
+    </div>
+    <button @onclick="RegisterSensorAsync">Register Sensor</button>
+    @if (RegisterStatus is not null)
+    {
+        <p class="status-msg @StatusClass(RegisterOk)">@RegisterStatus</p>
+    }
+</div>
+
+<div class="panel">
+    <h2>2. Registered Sensors</h2>
+    @if (Sensors.Count == 0)
+    {
+        <p>No sensors registered yet.</p>
+    }
+    else
+    {
+        <table>
+            <thead>
+                <tr><th>MAC</th><th>Location</th><th>Category</th><th>Registered</th><th>Files</th><th></th></tr>
+            </thead>
+            <tbody>
+                @foreach (var sensor in Sensors)
+                {
+                    <tr class="@RowClass(sensor.DeviceMac)">
+                        <td>@sensor.DeviceMac</td>
+                        <td>@sensor.DeploymentLocation</td>
+                        <td>@sensor.Category</td>
+                        <td>@sensor.RegisteredAt.ToLocalTime().ToString("HH:mm:ss")</td>
+                        <td>@sensor.AttachedFiles.Count</td>
+                        <td><button class="secondary" @onclick="() => SelectedMac = sensor.DeviceMac">@(sensor.DeviceMac == SelectedMac ? "Selected" : "Select")</button></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(SelectedMac))
+    {
+        <h3>Attach a File to @SelectedMac</h3>
+        <div class="form-row">
+            <div><InputFile OnChange="OnFileSelected" /></div>
+            <div><button @onclick="UploadFileAsync" disabled="@(SelectedFile is null)">Upload</button></div>
+        </div>
+        @if (UploadStatus is not null)
+        {
+            <p class="status-msg @StatusClass(UploadOk)">@UploadStatus</p>
+        }
+    }
+</div>
+
+<div class="panel">
+    <h2>3. Submit Telemetry</h2>
+    <p>Demonstrates the generic <code>TelemetryPacket&lt;T&gt;</code> wrapper &mdash; the same endpoint accepts a <code>float</code>, <code>int</code> or <code>bool</code> payload without boxing.</p>
+    <div class="form-row">
+        <div>
+            <label>Target Sensor</label>
+            <select @bind="SelectedMac">
+                <option value="">-- select --</option>
+                @foreach (var sensor in Sensors)
+                {
+                    <option value="@sensor.DeviceMac">@sensor.DeviceMac</option>
+                }
+            </select>
+        </div>
+        <div>
+            <label>Value Type</label>
+            <select @bind="TelemetryValueType">
+                <option value="float">float (environmental)</option>
+                <option value="int">int (power/wattage)</option>
+                <option value="bool">bool (actuator/valve)</option>
+            </select>
+        </div>
+        <div>
+            <label>Value</label>
+            <input @bind="TelemetryValueRaw" placeholder="@ValuePlaceholder" />
+        </div>
+        <div>
+            <label>Critical Threshold (optional)</label>
+            <input @bind="CriticalThresholdRaw" placeholder="e.g. 90" />
+        </div>
+    </div>
+    <button @onclick="SubmitTelemetryAsync">Ingest Telemetry</button>
+    @if (TelemetryStatus is not null)
+    {
+        <p class="status-msg @StatusClass(TelemetryOk)">@TelemetryStatus</p>
+    }
+</div>
+
+<div class="panel">
+    <h2>4. Live Anomaly Radar <span class="pillar-badge active">Dynamic Engagement Feature</span></h2>
+    <p>Every device gets a live, colour-tiered sparkline instead of a flat progress bar &mdash; see the Task 1 research report for the justification.</p>
+    @if (RadarByDevice.Count == 0)
+    {
+        <p>Ingest some telemetry above to populate the radar.</p>
+    }
+    else
+    {
+        @foreach (var radar in RadarByDevice.Values)
+        {
+            <div class="radar-device">
+                <div class="radar-header">
+                    <strong>@radar.DeviceMac</strong>
+                    <span class="radar-tier tier-@radar.Tier.ToLowerInvariant()">@radar.Tier</span>
+                </div>
+                <svg width="220" height="50" viewBox="0 0 220 50">
+                    <polyline points="@BuildSparklinePoints(radar.Points)" fill="none" stroke="@radar.ColorHex" stroke-width="2" />
+                </svg>
+                <div class="status-msg">@radar.Label</div>
+            </div>
+        }
+    }
+</div>
+
+<div class="panel">
+    <h2>5. Meter Aggregation Demo <span class="pillar-badge">Operator Overloading</span></h2>
+    <p>Uses <code>MeterReading</code>'s overloaded <code>+</code>, <code>-</code> and comparison operators: <code>Meter3 = Meter1 + Meter2</code>.</p>
+    <div class="form-row">
+        <div><label>Device A MAC</label><input @bind="MeterMacA" placeholder="AA:BB:CC:DD:EE:01" /></div>
+        <div><label>Device A Watts</label><input @bind="MeterWattsARaw" placeholder="120" /></div>
+        <div><label>Device B MAC</label><input @bind="MeterMacB" placeholder="AA:BB:CC:DD:EE:02" /></div>
+        <div><label>Device B Watts</label><input @bind="MeterWattsBRaw" placeholder="95" /></div>
+    </div>
+    <button @onclick="AggregateAsync">Aggregate</button>
+    @if (AggregationResult is not null)
+    {
+        <ul class="insight-list">
+            <li>Aggregate load (Meter1 + Meter2): <strong>@AggregationResult.AggregateWatts.ToString("F2") W</strong></li>
+            <li>Delta (Meter1 - Meter2): <strong>@AggregationResult.DeltaWatts.ToString("F2") W</strong></li>
+            <li>Device A has the higher load: <strong>@AggregationResult.DeviceAHigherLoad</strong></li>
+        </ul>
+    }
+</div>
+
+<div class="panel">
+    <h2>6. Device Hierarchy Validator <span class="pillar-badge">Recursion</span></h2>
+    <p>Edit the JSON tree below (Facility &rarr; Zone &rarr; Sub-Zone &rarr; sensor) and validate it recursively.</p>
+    <textarea rows="12" style="width:100%; font-family: monospace; background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 0.5rem;" @bind="HierarchyJson"></textarea>
+    <div style="margin-top:0.5rem;">
+        <button @onclick="ValidateHierarchyAsync">Validate Hierarchy</button>
+    </div>
+    @if (HierarchyStatus is not null)
+    {
+        <p class="status-msg @StatusClass(HierarchyOk)">@HierarchyStatus</p>
+    }
+    @if (HierarchyErrors.Count > 0)
+    {
+        <ul class="insight-list">
+            @foreach (var error in HierarchyErrors)
+            {
+                <li>@error</li>
+            }
+        </ul>
+    }
+</div>
+
+@code {
+    private List<SensorRegistrationResponse> Sensors = new();
+
+    private string NewMac = string.Empty;
+    private string NewLocation = string.Empty;
+    private SensorCategory NewCategory = SensorCategory.Environmental;
+    private string? RegisterStatus;
+    private bool RegisterOk;
+
+    private string? SelectedMac;
+    private IBrowserFile? SelectedFile;
+    private string? UploadStatus;
+    private bool UploadOk;
+
+    private string TelemetryValueType = "float";
+    private string TelemetryValueRaw = string.Empty;
+    private string CriticalThresholdRaw = string.Empty;
+    private string? TelemetryStatus;
+    private bool TelemetryOk;
+
+    private readonly Dictionary<string, double?> CriticalThresholds = new();
+    private readonly Dictionary<string, RadarState> RadarByDevice = new();
+
+    private string MeterMacA = "AA:BB:CC:DD:EE:01";
+    private string MeterMacB = "AA:BB:CC:DD:EE:02";
+    private string MeterWattsARaw = "120";
+    private string MeterWattsBRaw = "95";
+    private MeterAggregationResponse? AggregationResult;
+
+    private string HierarchyJson = DefaultHierarchyJson;
+    private string? HierarchyStatus;
+    private bool HierarchyOk;
+    private List<string> HierarchyErrors = new();
+
+    private const string DefaultHierarchyJson = """
+    {
+      "name": "Facility A",
+      "deviceMac": null,
+      "children": [
+        {
+          "name": "Zone 1",
+          "deviceMac": null,
+          "children": [
+            {
+              "name": "Sub-Zone B",
+              "deviceMac": "AA:BB:CC:DD:EE:01",
+              "children": []
+            }
+          ]
+        }
+      ]
+    }
+    """;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSensorsAsync();
+    }
+
+    private async Task LoadSensorsAsync()
+    {
+        Sensors = await Api.GetSensorsAsync();
+        if (string.IsNullOrEmpty(SelectedMac) && Sensors.Count > 0)
+        {
+            SelectedMac = Sensors[0].DeviceMac;
+        }
+    }
+
+    private async Task RegisterSensorAsync()
+    {
+        if (string.IsNullOrWhiteSpace(NewMac) || string.IsNullOrWhiteSpace(NewLocation))
+        {
+            RegisterOk = false;
+            RegisterStatus = "Device MAC and deployment location are required.";
+            return;
+        }
+
+        var (success, error) = await Api.RegisterSensorAsync(new SensorRegistrationRequest(NewMac.Trim(), NewLocation.Trim(), NewCategory));
+
+        RegisterOk = success;
+        RegisterStatus = success ? $"Registered {NewMac}." : $"Failed: {error}";
+
+        if (success)
+        {
+            NewMac = string.Empty;
+            NewLocation = string.Empty;
+            await LoadSensorsAsync();
+        }
+    }
+
+    private void OnFileSelected(InputFileChangeEventArgs e)
+    {
+        SelectedFile = e.File;
+    }
+
+    private async Task UploadFileAsync()
+    {
+        if (string.IsNullOrWhiteSpace(SelectedMac) || SelectedFile is null)
+        {
+            UploadOk = false;
+            UploadStatus = "Select a sensor and a file first.";
+            return;
+        }
+
+        using var content = new MultipartFormDataContent();
+        var stream = SelectedFile.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
+        var streamContent = new StreamContent(stream);
+        var contentType = string.IsNullOrWhiteSpace(SelectedFile.ContentType) ? "application/octet-stream" : SelectedFile.ContentType;
+        streamContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(contentType);
+        content.Add(streamContent, "file", SelectedFile.Name);
+
+        var (success, error) = await Api.UploadFileAsync(SelectedMac, content);
+
+        UploadOk = success;
+        UploadStatus = success ? $"Uploaded {SelectedFile.Name}." : $"Failed: {error}";
+
+        if (success)
+        {
+            SelectedFile = null;
+            await LoadSensorsAsync();
+        }
+    }
+
+    private async Task SubmitTelemetryAsync()
+    {
+        if (string.IsNullOrWhiteSpace(SelectedMac))
+        {
+            TelemetryOk = false;
+            TelemetryStatus = "Select a sensor first.";
+            return;
+        }
+
+        float? floatValue = null;
+        int? intValue = null;
+        bool? boolValue = null;
+
+        if (TelemetryValueType == "float")
+        {
+            if (!float.TryParse(TelemetryValueRaw, out var parsed))
+            {
+                TelemetryOk = false;
+                TelemetryStatus = "Enter a valid decimal value.";
+                return;
+            }
+            floatValue = parsed;
+        }
+        else if (TelemetryValueType == "int")
+        {
+            if (!int.TryParse(TelemetryValueRaw, out var parsed))
+            {
+                TelemetryOk = false;
+                TelemetryStatus = "Enter a valid whole number.";
+                return;
+            }
+            intValue = parsed;
+        }
+        else
+        {
+            boolValue = TelemetryValueRaw.Trim().ToLowerInvariant() is "true" or "1" or "on";
+        }
+
+        double? criticalThreshold = double.TryParse(CriticalThresholdRaw, out var threshold) ? threshold : null;
+
+        var mac = SelectedMac;
+        var request = new TelemetryIngestRequest(mac, TelemetryValueType, floatValue, intValue, boolValue, criticalThreshold);
+        var (success, error) = await Api.IngestTelemetryAsync(request);
+
+        TelemetryOk = success;
+        TelemetryStatus = success ? "Telemetry ingested." : $"Failed: {error}";
+
+        if (success)
+        {
+            CriticalThresholds[mac] = criticalThreshold;
+            await RefreshRadarAsync(mac);
+        }
+    }
+
+    private async Task RefreshRadarAsync(string deviceMac)
+    {
+        var history = await Api.GetHistoryAsync(deviceMac);
+        if (history is null || history.OptimisedHistory.Count == 0)
+        {
+            return;
+        }
+
+        var points = history.OptimisedHistory.TakeLast(24).ToList();
+        var last = points[^1];
+        var previous = points.Count > 1 ? points[^2] : last;
+        var percentChange = previous == 0 ? 0 : Math.Abs((last - previous) / previous) * 100;
+
+        var tier = "Nominal";
+        var colorHex = "#2fbf71";
+
+        if (CriticalThresholds.TryGetValue(deviceMac, out var criticalThreshold) &&
+            criticalThreshold.HasValue &&
+            Math.Abs(last) >= Math.Abs(criticalThreshold.Value))
+        {
+            tier = "Critical";
+            colorHex = "#e5484d";
+        }
+        else if (percentChange >= 20)
+        {
+            tier = "Warning";
+            colorHex = "#f5a623";
+        }
+
+        var direction = last > previous ? "rising" : last < previous ? "falling" : "steady";
+        var label = $"{deviceMac}: {direction}, {percentChange:F0}% since last reading";
+
+        RadarByDevice[deviceMac] = new RadarState(deviceMac, points, tier, label, colorHex);
+    }
+
+    private static string BuildSparklinePoints(IReadOnlyList<double> values, double width = 220, double height = 50)
+    {
+        if (values.Count < 2)
+        {
+            return $"0,{height / 2:F1} {width},{height / 2:F1}";
+        }
+
+        var min = values.Min();
+        var max = values.Max();
+        var range = max - min;
+        if (range == 0)
+        {
+            range = 1;
+        }
+
+        var stepX = width / (values.Count - 1);
+        var points = new List<string>(values.Count);
+
+        for (var i = 0; i < values.Count; i++)
+        {
+            var x = i * stepX;
+            var y = height - ((values[i] - min) / range * height);
+            points.Add($"{x.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)},{y.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)}");
+        }
+
+        return string.Join(" ", points);
+    }
+
+    private async Task AggregateAsync()
+    {
+        if (!double.TryParse(MeterWattsARaw, out var wattsA) || !double.TryParse(MeterWattsBRaw, out var wattsB))
+        {
+            return;
+        }
+
+        AggregationResult = await Api.AggregateAsync(new MeterAggregationRequest(MeterMacA, wattsA, MeterMacB, wattsB));
+    }
+
+    private async Task ValidateHierarchyAsync()
+    {
+        try
+        {
+            var options = new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            var root = System.Text.Json.JsonSerializer.Deserialize<DeviceNode>(HierarchyJson, options);
+
+            if (root is null)
+            {
+                HierarchyOk = false;
+                HierarchyStatus = "Could not parse the hierarchy JSON.";
+                return;
+            }
+
+            var result = await Api.ValidateHierarchyAsync(new HierarchyValidationRequest(root));
+
+            if (result is null)
+            {
+                HierarchyOk = false;
+                HierarchyStatus = "The API did not return a result.";
+                return;
+            }
+
+            HierarchyOk = result.IsValid;
+            HierarchyErrors = result.Errors;
+            HierarchyStatus = result.IsValid ? "Hierarchy is valid." : $"{result.Errors.Count} issue(s) found.";
+        }
+        catch (System.Text.Json.JsonException ex)
+        {
+            HierarchyOk = false;
+            HierarchyStatus = $"Invalid JSON: {ex.Message}";
+        }
+    }
+
+    private static string StatusClass(bool ok) => ok ? "status-ok" : "status-error";
+
+    private string RowClass(string mac) => mac == SelectedMac ? "selected-row" : string.Empty;
+
+    private string ValuePlaceholder => TelemetryValueType == "bool" ? "true / false" : "e.g. 42.5";
+
+    private sealed record RadarState(string DeviceMac, List<double> Points, string Tier, string Label, string ColorHex);
+}
