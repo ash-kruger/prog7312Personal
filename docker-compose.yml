@@ -1,0 +1,12 @@
+# Optional. Runs only the ingestion API in a container; the Blazor
+# WebAssembly client is a static app and is normally run with
+# `dotnet run` (see README.md) or served by any static file host.
+services:
+  smartx-api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    ports:
+      - "8080:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
