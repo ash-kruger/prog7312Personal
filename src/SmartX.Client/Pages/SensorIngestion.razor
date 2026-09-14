@@ -213,25 +213,23 @@
     private bool HierarchyOk;
     private List<string> HierarchyErrors = new();
 
-    private const string DefaultHierarchyJson = """
+    private const string DefaultHierarchyJson = @"{
+  ""name"": ""Facility A"",
+  ""deviceMac"": null,
+  ""children"": [
     {
-      "name": "Facility A",
-      "deviceMac": null,
-      "children": [
+      ""name"": ""Zone 1"",
+      ""deviceMac"": null,
+      ""children"": [
         {
-          "name": "Zone 1",
-          "deviceMac": null,
-          "children": [
-            {
-              "name": "Sub-Zone B",
-              "deviceMac": "AA:BB:CC:DD:EE:01",
-              "children": []
-            }
-          ]
+          ""name"": ""Sub-Zone B"",
+          ""deviceMac"": ""AA:BB:CC:DD:EE:01"",
+          ""children"": []
         }
       ]
     }
-    """;
+  ]
+}";
 
     protected override async Task OnInitializedAsync()
     {
